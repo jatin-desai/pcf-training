@@ -101,16 +101,6 @@ Roles: Space Managers, Space Developers, Space Auditors
 
 ---
 
-## <i class="fa fa-tachometer"></i> Role and Access Management
-
-Built-in dashboard allows IT Operations to segregate access of shared resources with ease and apply org-wide governance models within a Foundation
-
-- Manage OS/Middleware versions
-- Manage organization access by environment
-- Manage resources access by role: IT Operators, Developers, Testers
-
----
-
 <!-- .slide: class="center" style="text-align: center" transitionSpeed="slow" data-background="#01786e" -->
 
 # Services
@@ -178,7 +168,6 @@ Credentials are exposed to bound applications via `VCAP_SERVICES` environment va
 
 - Credentials NOT carried in a properties file within the application war file
 - Custody of credentials shifts from the app configuration, to the Cloud Controller DB
-- If the user-provided service requires the app to use SSL/TLS for access then app may need to be pushed with a custom Buildpack
 - Factor out the certificate management functions from the app configuration
 
 ---
@@ -190,19 +179,16 @@ Credentials are exposed to bound applications via `VCAP_SERVICES` environment va
 - Both an OAuth2 authorization and resource server
 - Provides endpoints for managing user accounts and OAuth2 clients
 - Supported Standards: OAuth2, OpenID Connect, SCIM, JWT
-- Provides authentication for keystone & LDAP
 
 ---
 
 ## Login Server
 
-- Handles SAML authentication in Cloud Foundry
-- Delegates all other identity management tasks to the UAA
-- Branded HTML UI for authentication and OAuth approval
-- SSO for web applications in the Cloud Foundry platform
+- Implements SSO for Pivotal Cloud Foundry platform
 - SAML 2.0 Service Provider authenticating against SAML IDPs
-- Holds an HTTP session for an authenticated user via the UI
-- Integration with a central notifications server for managing emails
+- Also Handles LDAP authentication
+- All other identity management tasks delegated to the UAA
+- Provides a branded HTML UI for authentication and OAuth approval
 
 ---
 
@@ -250,7 +236,6 @@ Note:Minimal Pivotal CF network access. Allows PCF to be easily deployed on a VL
 - Firewalls configured to limit inbound & outbound connections
 - Rules prevent app inside a Warden container from talking to system components
 - Rules configured with ```allow_networks``` & ```deny_networks``` properties in BOSH manifest
-- Application isolation, OS restrictions & encrypted connections ensure risk is mitigated
 
 ---
 
@@ -376,6 +361,8 @@ Apps are prevented from communicating directly with each other by container fire
 * List of network egress `allow` rules for application containers
 
 * Can be applied to the entire deployment or to a space
+
+* Separate groups for staging and runtime
 
 * Evaluates security groups * other traffic rules in a strict priority order
 ``` json
