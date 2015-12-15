@@ -112,3 +112,9 @@ cf create-org pcf-training
 cf create-space development -o pcf-training
 ```
 
+### Clound lab files
+
+```
+cd ~
+git clone https://github.com/S2EDU/CloudFoundryStudentFiles
+```
