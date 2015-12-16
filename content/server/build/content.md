@@ -1,440 +1,308 @@
 <!-- .slide: class="center" style="text-align: center" transitionSpeed="slow" data-background="#01786e" -->
 
-## SECURITY IN PIVOTAL CLOUD FOUNDRY
+## LOGGING & MONITORING
 
 ---
 
-# Layers of Security
+<!-- .slide: class="center" style="text-align: center" transitionSpeed="slow" data-background="#01786e" -->
 
-![](assets/layered-approach.png)<!-- .element: style="width:70%; height: auto; float: center" -->
-
----
-
-##<!-- .element: class="fa-icon fa fa-lock"--> Pivotal CF Axes of Security
-
-* Confidentiality
-  * Access Control
-    * Authentication
-    * Authorization
-    * Auditing
-* Integrity
-  * Network Security 
-    * Cryptography
-* Availability
+# Application Logging
 
 Note:
-
-Need to consider
-* Ops Manager & Director -> Bosh
-* Elastic Runtime -> Warden & Diego
-* Developer Console -> Application
-* UAA -> Users & Groups
-* Interfaces ->
-* Resource Pools ->
-* Outer Shell
-* Inner Shell
-* Security Architecture and Design
-  * Container
-  * Application
-* Operations Security
-
-http://docs.pivotal.io/pivotalcf/concepts/security.html
-We are not going to cover
-* Security Governance and Risk Management
-* Software Development Security
-* Roadmap - slide at end
-* Software Vulnerability Management - slide at end
-
-
-for each (C,I,A)
-  User
-  Outer
-  Inner
-  App
-  Service
+* Use CLI to tail application logs
+* Drain application logs to 3rd party log service
+Loggregator allows users to:
+1. Tail their application logs.
+2. Dump a recent set of application logs (where recent is a configurable number of log packets).
+3. Continually drain their application logs to 3rd party log archive and analysis services.
 
 ---
 
-<!-- .slide: class="center" style="text-align: center" transitionSpeed="slow" data-background="#01786e" -->
+## <!-- .element: class="fa-icon fa fa-lightbulb-o"-->Logging Constraints
 
-# System Boundaries - Identity & Access Control
-
----
-
-## A Pivotal Cloud Foundry Foundation
-
-![](assets/foundation.png)<!-- .element: style="width: 50%; height: auto; margin-left: auto; margin-right: auto; float: right;margin-top: -2%;" -->
-
-Physical division for completely separate managed environments
-
-Targeted to a specific IaaS infrastructure (e.g. vSphere cluster)
-
-Can be used to physically separate production from pre-production
+- Loggregator collects STDOUT & STDERR from the customer's application. This may require configuration on the developer's side.
+- A Loggregator outage does not affect the running application.
+- Loggregator gathers and stores logs in a best-effort manner. While undesirable, losing the current buffer of application logs is acceptable.
+- The 3rd party drain API mimics Heroku's in order to reduce integration effort for our partners. The Heroku drain API is simply remote syslog over TCP.
 
 ---
 
-## Organizations
+## <!-- .element: class="fa-icon fa fa-lightbulb-o"-->Logging Architecture
 
-![](assets/orgs.png)<!-- .element: style="width: 40%; height: auto; margin-left: auto; margin-right: auto; float: right;" -->
+ * ___Sources___ - Logging agents that run on the Cloud Foundry components.
+ * ___Metron___ - Metron agents are colocated with sources. They collect logs and forward them to:
+ * ___Doppler___ - Responsible for gathering logs from the Metron agents, storing them in temporary buffers, and forwarding logs to 3rd party syslog drains.
+ * ___Traffic Controller___ - Handles client requests for logs. Gathers and collates messages from all Doppler servers, and provides external API and message translation (as needed for legacy APIs).
 
-Logical divisions for tenants, having their own Quotas and Users
+Note:
+In a redundant CloudFoundry setup, Loggregator can be configured to survive zone failures. Log messages from non-affected zones will still make it to the end user. PCF availability zones could be used as redundancy zones.
 
-User permissions are specified per Org and Space
-
-User administration is delegated to the Org level
-
-Roles: Org Manager, Org Auditor
-
----
-
-## Spaces
-
-![](assets/spaces.png)<!-- .element: style="width: 30%; height: auto; margin-left: auto; margin-right: auto; float: right;" -->
-
-Logical sub-division inside an Org
-
-Users specified at the Org level can have different access levels per Space
-
-Services and Applications are scoped to a  Space
-
-Roles: Space Managers, Space Developers, Space Auditors
+The role of Traffic Controller is to handle inbound web socket requests for log data. It does this by proxying the request to all loggregator servers (regardless of az). Since an application can be deployed to multiple azs, its logs can potentially end up on loggregator servers in multiple azs. This is why the traffic controller will attempt to connect to loggregator servers in each az and will collate the data into a single stream for the web socket client.
 
 ---
 
-<!-- .slide: class="center" style="text-align: center" transitionSpeed="slow" data-background="#01786e" -->
+## <!-- .element: class="fa-icon fa fa-lightbulb-o"-->Logging Architecture Overview
 
-# Services
-
----
-
-## Security Benefits of Managed and User-Provided Services
-
-* Reduce an app’s attack surface
-* Keep service credentials confidential
-* Improve the consistency of devops procedures
-* Enable standardized event monitoring
-* Simplified auditing visibility
-
-Note: http://johnpfield.wordpress.com/2014/09/17/some-basic-security-considerations-for-cloud-foundry-services/
+![](assets/pcf-log-streaming-and-aggregation.png)
 
 ---
 
-## Managed Services
+## <!-- .element: class="fa-icon fa fa-keyboard-o"-->Tailing App Logs
 
-![](assets/managed-services-access.png)<!-- .element: style="width:50%; height: auto; float: right" -->
-
-Service Brokers generate connection details and credentials
-
-Credentials are encrypted and stored in the CCDB
-
-Credentials are exposed to bound applications via `VCAP_SERVICES` environment variable
-
----
-
-## Managed Services Instances
-
-`VCAP_SERVICES` environment variable is visible only to members of the org and space containing the service instance
+To stream Loggregator app output to your terminal, use the command:
 
 ```
-"VCAP_SERVICES": {
-  "cleardb": [
-  {
-    "credentials": {
-      "hostname": "us-cdbr-iron-east-01.cleardb.net",
-      "jdbcUrl": "jdbc:mysql://b6ff4f848e6edd:ee2021a8@us-cdbr-iron-east-01.cleardb.net:3306/ad_abbdc667362bce4",
-      "name": "ad_abbdc667362bce4",
-      "password": "ee2021a8",
-      "port": "3306",
-      "uri": "mysql://b6ff4f848e6edd:ee2021a8@us-cdbr-iron-east-01.cleardb.net:3306/ad_abbdc667362bce4?reconnect=true",
-      "username": "b6ff4f848e6edd"
-      },
-      "label": "cleardb",
-      "name": "mysql",
-      "plan": "spark",
-      "tags": [
-      "Data Stores",
-      "relational",
-      "Data Store",
-      "mysql"
-      ]
-    }
-    ]
-  }
-  ```
+$ cf logs <app_name>
 
----
-
-## Security Considerations for CUPS
-
-- Credentials NOT carried in a properties file within the application war file
-- Custody of credentials shifts from the app configuration, to the Cloud Controller DB
-- Factor out the certificate management functions from the app configuration
-
----
-
-## <!-- .element: class="fa-icon fa fa-user"-->User Authentication and Authorization
-
-- Provides Identity & Access Management for Cloud Foundry
-- OAuth 2 provider and SCIM capable REST server
-- Both an OAuth2 authorization and resource server
-- Provides endpoints for managing user accounts and OAuth2 clients
-- Supported Standards: OAuth2, OpenID Connect, SCIM, JWT
-
----
-
-## Login Server
-
-- Implements SSO for Pivotal Cloud Foundry platform
-- SAML 2.0 Service Provider authenticating against SAML IDPs
-- Also Handles LDAP authentication
-- All other identity management tasks delegated to the UAA
-- Provides a branded HTML UI for authentication and OAuth approval
-
----
-
-### Typical Authorization Code Grant Flow
-
-![](assets/UAA-Data-Flow.png)<!-- .element: style="width:65%; height: auto;" -->
-
----
-
-
-## UAA + Login Server = End User Identity
-
-<!-- .slide: style="font-size: 30px;" -->
-
-![](assets/uaa-flow.png)<!-- .element: style="width:40%; height: auto; float: right " -->
-
-
-UAA stores usernames and encrypted passwords in the UAADB
-
-UAA can use either symmetric key encryption (shared secrets) or public key encryption.
-
-All interactions with the CC API must include a valid OAuth2 access token
-
-UAA supports integration with external authentication sources like LDAP and AD
-
----
-
-<!-- .slide: class="center" style="text-align: center" transitionSpeed="slow" data-background="#01786e" -->
-
-# System Boundaries - Perimeter Integrity
-
----
-
-##  <!-- .element: class="fa-icon fa fa-lock"-->System Boundaries
-
-  ![](assets/deploy-topology.png)<!-- .element: style="width:80%; height: auto; float: center;margin-top: -3%;" -->
-
-Note:Minimal Pivotal CF network access. Allows PCF to be easily deployed on a VLAN or behind a firewall.Reduces surface area vulnerabilities
-
----
-
-## <!-- .element: class="fa fa-icon fa-shield"--> Firewalls/IaaS Security Groups
-
-- Managed firewalls prevent IP, MAC & ARP spoofing between VMs
-- Firewalls configured to limit inbound & outbound connections
-- Rules prevent app inside a Warden container from talking to system components
-- Rules configured with ```allow_networks``` & ```deny_networks``` properties in BOSH manifest
-
----
-
-##  <!-- .element: class="fa-icon fa fa-lock"-->API Access Protocols
-
-![](assets/api-access.png)<!-- .element: style="width:70%; height: auto; float: right;margin-top: -1%;" -->
-
-
-API access for app mgnt. service mgmt., org & space mgmt.  is routed to Cloud Controller via HTTP/HTTPS.
-
-Note: . Inside the boundary of the system, components communicate over a pub-sub message bus, gnatsd.
-
----
-
-## External Load Balancer
-
-![](assets/loadbalancer.png)<!-- .element: style="width:50%; height: auto; float: right" -->
-
-  HA Proxy can be replaced with an external load balancer
-
-  SSL is terminated at the load balancer
-
-Note:
-Switching to an external LB requires SSL certs, VIP(s) and Ability to add ``` X-Forwarded-For X-Forwarded-Port X-Forwarded-Protocol``` headers
-
----
-
-##  <!-- .element: class="fa-icon fa fa-lock"-->Outbound Service Access
-
-![](assets/service-access.png)<!-- .element: style="width:65%; height: auto; float: right" -->
-
-Applications connect directly to managed services via assigned addresses and ports
-
-Applications can access “user provided” services outside of the PCF VLAN
-
-Note: One advantage of using a managed service is that, in general, the credentials that are needed to access that service will not need to be pre-configured into your applications. Rather, these can be dynamically provisioned and injected into the application at runtime.
-
----
-
-##  <!-- .element: class="fa-icon fa fa-lock"-->Inbound Service Access
-
-![](assets/service-access2.png)<!-- .element: style="width:65%; height: auto; float: right;margin-top: -3%;" -->
-
-  Users can access managed services from outside the PCF VLAN as allowed by firewall rules
-
-  Ports are dependent on the service
-
-  Some services (e.g. RabbitMQ expose dashboard UIs on additional ports
-
----
-
-<!-- .slide: class="center" style="text-align: center" transitionSpeed="slow" data-background="#01786e" -->
-
-# System Boundaries - Application Container Integrity
-
----
-
-##  <!-- .element: class="fa-icon fa fa-lock"-->Application Access
-
-<!-- .slide: style="font-size: 30px;" -->
-
-![](assets/app-access.png)<!-- .element: style="width: 65%; height: auto; display: block; margin-left: auto; margin-right: auto; float: right;" -->
-
-Application access is routed directly to an application instance
-
-SSL is terminated at the HA Proxy load balancing layer; all internal PCF traffic is trusted HTTP
-
-App-App and App-System component communication is prevented by firewall rules specified in CF Deployment
-
-Note:The App Container IP address is allocated when the application instance is started. The application is also assigned an arbitrary port. The application can determine which port to listen on from the VCAP_APP_PORT environment variable provided in the container environment.The Elastic Runtime router handles all inbound traffic to applications, routing traffic to one of the application instances.If the deployment is configured as recommended with the cluster on a VLAN, then all outbound traffic goes through two levels of network address translation: container IP address to DEA IP address, then DEA to the NAT provisioned to connect the VLAN with the public internet. Applications are prevented from connecting directly with other applications, or with system components, by the firewall rules specified in the operator-controlled BOSH deployment manifest.
-
----
-
-##  <!-- .element: class="fa-icon fa fa-exchange"-->Application Traffic
-
-![](assets/app_traffic.png)<!-- .element: style="width: 50%; height: auto; float: right" -->
-
-All outbound traffic goes through two levels of network address translation
-
-Container IP address to DEA IP address
-
-DEA to the NAT provisioned to connect the VLAN with the public internet
-
----
-
-##  <!-- .element: class="fa-icon fa fa-lock"-->Container Isolation
-
-![](assets/container-isolation1.png)<!-- .element: style="width:30%; height: auto; float: right" -->
-
-
-Containers provide isolation of resources – CPU, memory, file system, process space, network
-
-Containers have their own private network, not accessible from outside the DEA
-
-Note:Networking Every container is assigned a network interface which is one side of a virtual ethernet pair created on the host. The other side of the virtual ethernet pair is only visible on the host, from the root namespace. The pair is configured to use IPs in a small and static subnet. Traffic from and to the container can be forwarded using NAT. Additionally, all traffic can be filtered and shaped as needed, using readily available tools such as iptables.
-
-Filesystem Every container gets a private root filesystem. This filesystem is created by stacking a read-only filesystem and a read-write filesystem. This is implemented by using aufs on Ubuntu versions from 10.04 up to 11.10, and overlayfs on Ubuntu 12.04.
-
-
----
-
-##  <!-- .element: class="fa-icon fa fa-lock"-->Inter-Container Isolation
-
-![](assets/container-isolation2.png)<!-- .element: style="width:50%; height: auto; float: right" -->
-
-
-Routers forward requests from outside using the app’s route to the assigned port on the DEA, which does network translation to the container’s internal IP and port
-
-Apps are prevented from communicating directly with each other by container firewall rules; they must communicate through published routes
-
----
-
-<!-- .slide: class="center" style="text-align: center" transitionSpeed="slow" data-background="#01786e" -->
-
-# Application Security Groups
-
----
-
-### <!-- .element: class="fa-icon fa fa-users"-->Application Security Groups
-
-* Virtual firewalls to control outbound traffic from  apps in your deployment
-
-* List of network egress `allow` rules for application containers
-
-* Can be applied to the entire deployment or to a space
-
-* Separate groups for staging and runtime
-
-* Evaluates security groups * other traffic rules in a strict priority order
-``` json
-[{"protocol":"tcp","destination":"10.0.11.0/24","ports":"1-65535"},
-  {"protocol":"udp","destination":"10.0.11.0/24","ports":"1-65535"}]
 ```
 
+---
+
+## <!-- .element: class="fa-icon fa fa-keyboard-o"-->Dumping App Logs
+
+To view all the lines in the Loggregator buffer for an app, use the command:
+
+```
+$ cf logs <app_name> --recent
+
+```
+
+---
+
+## <!-- .element: class="fa-icon fa fa-keyboard-o"-->Filtering Logs
+
+To view some subset of log output, use `cf logs` in conjunction with filtering commands of your choice. In the example below, `grep -v` excludes all Router logs:
+
+```
+$ cf logs myapp --recent | grep -v RTR
+    Connected, dumping recent logs for app myapp in org enterprise-org / space development as johndoe@example.com...
+    2014-02-07T10:54:40.41-0800 [STG]     OUT -----> Uploading droplet (5.6M)
+    2014-02-07T10:54:44.44-0800 [DEA]     OUT Starting app instance (index 0) with guid 4d397313-20e0-478a-9a74-307446eb7640
+    2014-02-07T10:54:46.31-0800 [App/0]   OUT Express server started
+    2014-02-07T10:57:53.60-0800 [API]     OUT Updated app with guid 4d397313-20e0-478a-9a74-307446eb7640 ({"instances"=>2})
+    2014-02-07T10:57:53.64-0800 [DEA]     OUT Starting app instance (index 1) with guid 4d397313-20e0-478a-9a74-307446eb7640
+    2014-02-07T10:57:55.88-0800 [App/1]   OUT Express server started
+    ...
+```
+
+---
+
+<!-- .slide: class="center" style="text-align: center" transitionSpeed="slow" data-background="#01786e" -->
+
+# 3rd Party Log Draining
+
+---
+
+## <!-- .element: class="fa-icon fa fa-lightbulb-o"-->Steps For Setting Up Log Drain
+
+* Configure the log management service to treat your application as a source of data
+* Create a user-provided service instance with a syslog drain
+* Bind the service instance to the application
+
+```
+cf cups syslog-drain -l syslog://logs.example.com:1234
+cf bs myapp syslog-drain
+cf restart
+```
+
+---
+
+## <!-- .element: class="fa-icon fa fa-lightbulb-o"-->Elastic Runtime Component Logs
+
+![inline](./assets/log-aggregation-for-cf-components.png)
+
 Note:
-`allow`, `deny`, or `reject` result for the first rule that matches the outbound traffic request parameters, and does not evaluate any lower-priority rules
+Cloud Foundry has the ability to capture logs from several components running on the elastic-runtime.
+In order to aggregate these logs and export the data to an external log management and analysis system,
+configure the syslog aggregator with your own syslog endpoint.
+Once you provide a syslog endpoint, logs will be forwarded to that instead.
 
 ---
 
-### <!-- .element: class="fa-icon fa fa-users"-->Assigning Security Groups
-* System security rules (REJECT all) are hard-coded at the bottom of the chain
-* Set of whitelist rules in three targets
-  * All running application (“Global Running”)
-  * All application in staging mode (“Global Staging”)
-  * Specific groups of applications (“Space”)
-* Rules are automatically applied at the app-container creation
-*  Result in IPTABLES rules applied to the virtual network interface used by application containers
+<!-- .slide: class="center" style="text-align: center;" transitionSpeed="slow" data-background="#01786e" -->
 
+# Application Monitoring
 
 ---
 
-### <!-- .element: class="fa-icon fa fa-users"-->SG Rules
+## <!-- .element: class="fa-icon fa fa-lightbulb-o"-->Monitoring Using Web Console
 
-![](assets/sec-grp-rules.png)<!-- .element: style="width:70%; height: auto; float: right;margin-top: -8%;" -->
-
----
-
-### <!-- .element: class="fa-icon fa fa-code-fork"-->Securing Application Code at Rest & Transit
-
-<!-- .slide: style="font-size: 34px;" -->
-
-- Application developers push their code and metadata to blob-store & Cloud Controller
-
-- Access to app bits is secured through OAUTH2 -the UAA and SSL
-
-- Cloud Controller has role based permissions such that only authorized users aka developers are allowed to start/stop/push/delete an app
-
-- Cloud Controller stores application configuration in an encrypted database
-
-- Applications then run inside a secure container utilizing cgroups, user access permissions, and a firewalled network which prevents communication with system components
+![](./assets/application-monitoring.png)
 
 ---
 
-## <!-- .element: class="fa-icon fa fa-road"-->Pivotal CF Security Updates
+## <!-- .element: class="fa-icon fa fa-lightbulb-o"-->Monitoring Using CF CLI
 
-* Identity as a service tile based on UAA
-* Login Server merged with the UAA component
-* Login server is now a sub module of the UAA project
-* CA SiteMinder certified as a Web Access Management solution for apps
-* PCF certified with CA SiteMinder as a SAML 2.0 IDP for Single Sign-On
-* SAML Authentication moved to the UAA
-* Notifications endpoint
+Show the running instances and health information for one or more applications.
+
+```
+$ cf app [app_name]
+
+     state     since                    cpu    memory         disk
+#0   running   2014-09-15 07:29:44 PM   0.0%   463.5M of 1G   115.6M of 1G
+```
 
 ---
 
-## <!-- .element: class="fa-icon fa fa-link"-->For More Information
+## <!-- .element: class="fa-icon fa fa-lightbulb-o"-->Monitoring Using Cloud Controller
 
-- [OAuth2 Tutorial](http://tutorials.jenkov.com/oauth2/index.html)
-- Root of [source code tree](http://github.com/cloudfoundry/uaa), separate apps are uaa, samples/app, and samples/api.
-README.md and docs directory have some good [docs](https://github.com/cloudfoundry/uaa/blob/master/docs/Sysadmin-Guide.rst) (check age, some are out of date)
-- [Source](http://github.com/cloudfoundry/login-server) for login-server is in another repository
-- [Discussion](https://groups.google.com/a/cloudfoundry.org/forum/#!topic/vcap-dev/73wXTyA3rxw) on vcap-dev of possible merging of login-server into uaa
-- [OAuth2 Specification](http://tools.ietf.org/html/rfc6749)
-- [Article on securing service with UAA's OAuth2 functionality](http://blog.sequenceiq.com/blog/2014/10/16/using-uaa-as-an-identity-server/)
-- [Walkthrough](http://blog.cloudfoundry.org/2012/07/23/introducing-the-uaa-and-security-for-cloud-foundry/) of the UAA sample apps
-- Replay of Dave Syer's [Webinar](https://spring.io/blog/2014/11/07/webinar-replay-security-for-microservices-with-spring-and-oauth2) on Security for Microservices with Spring and OAuth2
-- [Blog](https://blog.starkandwayne.com/2014/11/11/simple-golang-oauth-client-for-cf/) article detailing UAA app client written in [golang](https://golang.org/)
-- Cloud Foundry [UAA - LDAP Integration](https://docs.google.com/a/pivotal.io/document/d/1oko714gd8irLYRvNel7fhsfme3LFXzPRpwY6HUCLT7U/pub)
-- [UAA, login-server, and SAML](https://slack-files.com/files-pri-safe/T025QNH4A-F03034UMP/uaa_login_howto.pdf?c=1415899126-9f408e5a852d6d01e4a48edce26ee0d899c10c74)
-- [Dashboard SSO](https://github.com/cloudfoundry/docs-services/blob/master/dashboard-sso.html.md)
-- [Public & Private Microservices](https://blog.starkandwayne.com/2014/10/31/public-and-private-microservices-on-the-same-cloud-foundry/)
-- [User Account and Authentication Service APIs](https://github.com/cloudfoundry/uaa/blob/master/docs/UAA-APIs.rst)
+Detailed output from the Cloud Controller can be retrieved:
+
+```bash
+$ cf curl /v2/apps/[app_id]
+
+{  
+   "0":{  
+      "state":"RUNNING",
+      "stats":{  
+         "name":"sample-todo",
+         "uris":[  
+            "sample-todo.cfapps.io"
+         ],
+         "host":"10.10.17.37",
+         "port":61006,
+         "uptime":238033,
+         "mem_quota":1073741824,
+         "disk_quota":1073741824,
+         "fds_quota":16384,
+         "usage":{  
+            "time":"2014-09-18 20:35:59 +0000",
+            "cpu":0.0006248159407962876,
+            "mem":486060032,
+            "disk":121237504
+         }
+      }
+   }
+}
+```
+<!--.element: style="font-size:40%"-->
+
+---
+
+## <!-- .element: class="fa-icon fa fa-lightbulb-o"-->Application Monitoring Events from CF CLI
+
+Application events can be displayed using the CF CLI:
+
+```bash
+$ cf events [app_name]
+
+time                          event                 actor   description
+2014-09-23T01:09:06.00-0600   audit.app.update      admin   state: STARTED
+2014-09-23T01:07:53.00-0600   audit.app.update      admin
+2014-09-23T01:07:53.00-0600   audit.app.map-route   admin
+2014-09-23T01:07:53.00-0600   audit.app.create      admin   instances: 1, memory: 512, state: STOPPED, environment_json: PRIVATE DATA HIDDEN
+```
+
+---
+
+## <!-- .element: class="fa-icon fa fa-lightbulb-o"-->Events Using Cloud Controller
+
+Detailed app events can be retrieved from the Cloud Controller.
+
+```
+cf curl /v2/app_usage_events
+{
+   "total_results": 2,
+   "total_pages": 1,
+   "prev_url": null,
+   "next_url": null,
+   "resources": [
+      {
+         "metadata": {
+            "guid": "0c87628f-5698-4f76-8f11-809637742bd4",
+            "url": "/v2/app_usage_events/0c87628f-5698-4f76-8f11-809637742bd4",
+            "created_at": "2014-09-23T07:08:02+00:00"
+         },
+         "entity": {
+            "state": "STARTED",
+            "memory_in_mb_per_instance": 512,
+            "instance_count": 1,
+            "app_guid": "aa68ffa4-bc96-45f3-93d5-d115188b8f82",
+            "app_name": "spring-music",
+            "space_guid": "82191461-ba63-42d1-8c12-a62d7f8bbe31",
+            "space_name": "development",
+            "org_guid": "6ce209eb-fa22-484f-94ad-5a19b527f856",
+            "buildpack_guid": null,
+            "buildpack_name": null
+         }
+      }
+   ]
+}
+```
+<!--.element: style="font-size:40%"-->
+
+---
+
+<!-- .slide: class="center" style="text-align: center;" transitionSpeed="slow" data-background="#01786e" -->
+
+# Transaction Monitoring
+
+Note:
+**Challenge:** Application availability monitoring is not
+sufficient.
+* Applications can be available, but customer transactions fail.
+* Businesses build on applications need to have deep visibility.
+**Solution:** Application monitoring in the context of
+transactions:
+* Identify failing transactions.
+* Identify the root cause of failing transactions.
+
+---
+
+## <!-- .element: class="fa-icon fa fa-lightbulb-o"-->App Monitoring Integration
+
+* App Dynamics
+* New Relic
+* Spring Insight*
+
+\*Configuration of Insight is not accomplished through the buildpack, but rather through the Insight dashboard.
+
+Note: Configuration of Insight is not accomplished through the
+buildpack, but rather through the Insight dashboard.  This service only works
+for applications deploying into the Tomcat container and modifies the Tomcat
+container with *TEMPORARY* support for behaviors needed by the Spring Insight
+agent.
+
+---
+
+<!-- .slide: class="center" style="text-align: center;" transitionSpeed="slow" data-background="#01786e" -->
+
+# Platform Monitoring
+
+Note:
+* Monitoring the platform logs
+* Ops metrics provides live platform stats
+
+---
+
+## <!-- .element: class="fa-icon fa fa-lightbulb-o"-->Cloud Foundry Metric Collector
+
+- Discovers the various components on the message bus and queries their /healthz and /varz interfaces.
+- The metric data collected is published to collector plugins.
+ - OpenTSDB, AWS CloudWatch and DataDog.
+ - Plugins are extensible to publish data to other systems.
+
+---
+
+## <!-- .element: class="fa-icon fa fa-lightbulb-o"-->Pivotal Ops Metrics
+
+* A JMX tool for elastic runtime
+* Collects and exposes system data from Cloud Foundry components via a JMX endpoint
+* Deployed as a tile
+* Use any JMX client to pull the data from Ops Metrics endpoint
+
+---
+
+## <!-- .element: class="fa-icon fa fa-lightbulb-o"-->Pivotal Ops Metrics Data Flow
+
+![](assets/monitoring-cf-components.png)
+
+Note: The /varz http endpoint metrics data
+
+---
+
+## <!-- .element: class="fa-icon fa fa-question-circle"-->For More Information
+
+ * http://docs.pivotal.io/pivotalcf/devguide/deploy-apps/streaming-logs.html
+ * http://blog.pivotal.io/cloud-foundry-pivotal/products/monitoring-java-apps-appdynamics
+ * http://blog.pivotal.io/cloud-foundry-pivotal/products/monitoring-cloud-foundry-applications-with-new-relic
