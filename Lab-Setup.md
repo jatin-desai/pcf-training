@@ -1,51 +1,55 @@
 ## Install CF CLI
 
+You will be using the Cloud Foundry CLI to interact with the runtime once it has been provisioned. Unlike the commercial distribution of Pivotal Cloud Foundry bosh-lite does not have an Applications Dashboard and all inspection and interaction with the Cloud Foundry runtime needs to be done through the CLI.
+
 * Download
 
-```
-curl -L https://cli.run.pivotal.io/stable?release=debian64&source=github -o cf-cli-installer_6.14.0_x86-64.deb
-```
+	```
+	curl -L https://cli.run.pivotal.io/stable?release=debian64&source=github -o cf-cli-installer_6.14.0_x86-64.deb
+	```
 
-> If curl command fails in you environment download using a browser
+	> If curl command fails in you environment download using a browser
 
 * Install
 
-```
-sudo dpkg -i cf-cli-installer_6.14.0_x86-64.deb
-```
+	```
+	sudo dpkg -i cf-cli-installer_6.14.0_x86-64.deb
+	```
 
 * Verify
 
-```
-cf help
-```
+	```
+	cf help
+	```
 
 ## Install Ruby
+
+Tthe Bosh CLI is based on Ruby. So you need to ensure Ruby is installed in your system to be able to provision Cloud Foundry to the Bosh-Lite VM. The Cloud Foundry CLI does is based on GO so it does not require the Ruby runtime.
 
 ### Using a Ruby Version Manager
 
 * Install [Ruby Version Manager](http://rvm.io/).
 
-```
-gpg --keyserver hkp://keys.gnupg.net --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3
-\curl -sSL https://get.rvm.io | bash -s stable
-```
+	```
+	gpg --keyserver hkp://keys.gnupg.net --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3
+	\curl -sSL https://get.rvm.io | bash -s stable
+	```
 
-If the above commands fail then follow the instructions on the RVM web site for alternate installation methods.
+	> If the above commands fail then follow the instructions on the RVM web site for 	alternate installation methods.
 
 * Install Ruby
 
-```
-rvm install ruby-2.2
-rvm --default use 2.2
-source ~/.bashrc
-```
+	```
+	rvm install ruby-2.2
+	rvm --default use 2.2
+	source ~/.bashrc
+	```
 
 * Verify 
 
-```
-ruby -v
-```
+	```
+	ruby -v
+	```
 
 ### Install to your system ruby
 
@@ -59,119 +63,134 @@ sudo apt-get install ruby
 
 ### Install [Vagrant](https://docs.vagrantup.com/v2/installation/)
 
+The Bosh-Lite VM will be deployed to a Virtual Box hypervisor using Vagrant. Vagrant provides a convenient CLI to launch VMs using a configuration file. It needs to be invoked from a folder that contains a `VagrantFile` in order for a VM to be deployed. This file contains information such as the VM image, cpus, memory, network etc.
+
+* Verify [Virtual Box](https://www.virtualbox.org/wiki/Downloads) is installed
+
+
+	```
+	VBoxManage --version
+	```
+
 * Download
 
-```
-curl -OL https://releases.hashicorp.com/vagrant/1.7.4/vagrant_1.7.4_x86_64.deb
-```
+	```
+	curl -OL https://releases.hashicorp.com/vagrant/1.7.4/vagrant_1.7.4_x86_64.deb
+	```
 
 * Install
 
-```
-sudo dpkg -i vagrant_1.7.4_x86_64.deb
-```
+	```
+	sudo dpkg -i vagrant_1.7.4_x86_64.deb
+	```
 
 * Verify
 
-```
-vagrant -v
-```
+	```
+	vagrant -v
+	```
 
 ### Install [Bosh Lite](https://github.com/cloudfoundry/bosh-lite)
 
 * Clone repo
 
-```
-git clone https://github.com/cloudfoundry/bosh-lite
-```
-
-* Verify [Virtual Box](https://www.virtualbox.org/wiki/Downloads) is installed
-
-```
-VBoxManage --version
-```
+	```
+	git clone https://github.com/cloudfoundry/bosh-lite
+	```
 
 * Start Bosh VM
 
-```
-cd bosh-lite
-vagrant up
-```
+	```
+	cd bosh-lite
+	vagrant up
+	```
 
 $ Install bosh-cli
 
-```
-gem install bosh_cli --no-document
-```
+	```
+	gem install bosh_cli --no-document
+	```
 
 * Verify Bosh
 
-```
-bosh target 192.168.50.4 lite
-bosh login admin admin
-bosh deployments
-```
+	```
+	bosh target 192.168.50.4 lite
+	bosh login admin admin
+	bosh deployments
+	```
 
 * If you installed a system ruby then ensure bundler is installed
 
-```
-sudo gem install bundler --no-document
-```
+	```
+	sudo gem install bundler --no-document
+	```
 
 * Download [spiff](https://github.com/cloudfoundry-incubator/spiff)
 
-```
-curl -OL https://github.com/cloudfoundry-incubator/spiff/releases/download/v1.0.7/spiff_linux_amd64.zip
-```
+	```
+	curl -OL https://github.com/cloudfoundry-incubator/spiff/releases/download/v1.0.7/spiff_linux_amd64.zip
+	```
 
-Once downloaded unzip it and copy the ```spiff``` binary to the ```/usr/bin``` folder.
+Once downloaded unzip it and copy the `spiff` binary to the `/usr/bin` folder.
 
 * Provision Cloud Foundry
 
-```
-./bin/add-route
-./bin/provision_cf
-```
+	```
+	./bin/add-route
+	./bin/provision_cf
+	```
 
-> Run the provision script as sudo if you are using the system Ruby.
+	> Run the provision script as sudo if you are using the system Ruby.
 
 * Verify Cloud Foundry by loging in and creating your first org and space
 
-```
-cf login --skip-ssl-validation -a https://api.bosh-lite.com -u admin -p admin
-cf create-org pcf-training
-cf create-space development -o pcf-training
-```
+	```
+	cf login --skip-ssl-validation -a https://api.bosh-lite.com -u admin -p admin
+	cf create-org pcf-training
+	cf create-space development -o pcf-training
+	```
 
-### Restoring bosh-lite
+### Troubleshooting bosh-lite
 
-Before you shutdown your system make sure you suspend the bosh-lite VM.
+* Before you shutdown your system make sure you suspend the bosh-lite VM.
 
-```
-vagrant suspend
-```
+	```
+	vagrant suspend
+	```
 
-Once you have restarted you workstation then resume the bosh-lite VM.
+* Once you have restarted you workstation then resume the bosh-lite VM.
 
-```
-vagrant up
-```
+	```
+	vagrant up
+	```
 
-Sometimes your bosh agents may become unresponsive and although your VM comes up you will not be able to access your Cloud Foundry deployment. To recover.
+* Sometimes your bosh agents may become unresponsive and although your VM comes up you will not be able to access your Cloud Foundry deployment. To recover.
 
-```
-bosh cck
-```
+	```
+	bosh cck
+	```
 
-Instruct bosh to re-create the managed VMs when it gives you the recovery options. Once recovery is complete ensure the route to the warden containers within the bosh-lite VMs is re-established.
+* Instruct bosh to re-create the managed VMs when it gives you the recovery options. Once recovery is complete ensure the route to the warden containers within the bosh-lite VMs is re-established.
 
-```
-./bin/add-route
-```
+	```
+	./bin/add-route
+	```
+
+	> If bosh appears to be running and you are still unable to connect then run `add-route`.
 
 ### Cloud lab files
 
-```
-cd ~
-git clone https://github.com/S2EDU/CloudFoundryStudentFiles
-```
+* Pivotal Cloud Foundry Labs
+
+	```
+	cd ~
+	git clone https://github.com/S2EDU/CloudFoundryStudentFiles
+	```
+
+* Spring Boot Labs
+
+	```
+	cd ~
+	git clone https://github.com/pivotal-enablement/spring-boot-labs
+	git clone https://github.com/pivotal-enablement/spring-cloud-services-labs
+	```
