@@ -1,3 +1,5 @@
+# Lab Setup
+
 ## Install CF CLI
 
 You will be using the Cloud Foundry CLI to interact with the runtime once it has been provisioned. Unlike the commercial distribution of Pivotal Cloud Foundry bosh-lite does not have an Applications Dashboard and all inspection and interaction with the Cloud Foundry runtime needs to be done through the CLI.
