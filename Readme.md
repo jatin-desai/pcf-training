@@ -26,7 +26,7 @@ You will be using the Cloud Foundry CLI to interact with the runtime once it has
 
 ## Install Ruby
 
-Tthe Bosh CLI is based on Ruby. So you need to ensure Ruby is installed in your system to be able to provision Cloud Foundry to the Bosh-Lite VM. The Cloud Foundry CLI does is based on GO so it does not require the Ruby runtime.
+The Bosh CLI is based on Ruby. So you need to ensure Ruby is installed in your system to be able to provision Cloud Foundry to the Bosh-Lite VM. The Cloud Foundry CLI does is based on GO so it does not require the Ruby runtime.
 
 ### Using a Ruby Version Manager
 
